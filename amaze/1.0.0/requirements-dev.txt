@@ -1,0 +1,8 @@
+# Local development & testing dependencies for the AMaze Shuffle app.
+# The Shuffle SDK (shuffle_sdk) is only needed to exercise the SDK run path
+# locally; the app container gets the SDK from the frikky/shuffle:app_sdk base
+# image instead.
+shuffle_sdk==0.0.40
+pytest
+PyYAML
+requests

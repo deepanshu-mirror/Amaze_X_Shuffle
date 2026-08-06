@@ -1,0 +1,715 @@
+walkoff_version: 1.0.0
+app_version: 1.0.0
+name: amaze
+description: >-
+  AMaze deception platform (MirrorMire AI) integration for Shuffle. Query and
+  operate deception-detection tickets, approvals, logs, sites, IP reputation
+  and audit/reporting via the AMaze REST API v3.
+contact_info:
+  name: "MirrorMire AI"
+  url: "https://mirrormire.ai"
+  email: "support@mirrormire.ai"
+tags:
+  - Case Management
+  - SIEM
+  - Deception
+categories:
+  - Case Management
+  - SIEM
+authentication:
+  required: true
+  parameters:
+    - name: base_url
+      description: "AMaze API base URL (for example https://amaze.example.com)"
+      required: true
+      example: "https://amaze.example.com"
+      schema:
+        type: string
+    - name: bearer_token
+      description: "Bearer token (JWT or API token) for AMaze API access."
+      required: true
+      example: "eyJhbGciOi..."
+      schema:
+        type: string
+actions:
+  # ── Tickets ──────────────────────────────────────────────────────────────
+  - name: list_tickets
+    description: "List and filter AMaze incident tickets (actionable alerts)."
+    parameters:
+      - name: status
+        description: "Ticket status filter (OPEN | IN_PROGRESS | CLOSED)"
+        required: false
+        multiline: false
+        example: "OPEN"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP prefix or exact match, e.g. 185.220.101.34"
+        required: false
+        multiline: false
+        example: "185.220.101."
+        schema:
+          type: string
+      - name: protocol
+        description: "Exact protocol, case-insensitive (ssh, http, ...)"
+        required: false
+        multiline: false
+        example: "ssh"
+        schema:
+          type: string
+      - name: ttp
+        description: "MITRE TTP prefix (T1110 matches T1110.001)"
+        required: false
+        multiline: false
+        example: "T1110"
+        schema:
+          type: string
+      - name: country
+        description: "Country substring, case-insensitive"
+        required: false
+        multiline: false
+        example: "RU"
+        schema:
+          type: string
+      - name: min_score
+        description: "Minimum threat score (0-100)"
+        required: false
+        multiline: false
+        example: "90"
+        schema:
+          type: string
+      - name: q
+        description: "Free-text search across title and description"
+        required: false
+        multiline: false
+        example: "ssh brute"
+        schema:
+          type: string
+      - name: from_dt
+        description: "Created at or after (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-01T00:00:00Z"
+        schema:
+          type: string
+      - name: to_dt
+        description: "Created at or before (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-05T00:00:00Z"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 200, max 1000)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: offset
+        description: "Skip this many rows (pagination)"
+        required: false
+        multiline: false
+        example: "0"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+  - name: get_ticket
+    description: "Retrieve a specific AMaze ticket by ID."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: update_ticket
+    description: "Update an AMaze ticket status, description and/or remediation."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+      - name: status
+        description: "Ticket status (OPEN | IN_PROGRESS | CLOSED)"
+        required: false
+        multiline: false
+        example: "CLOSED"
+        schema:
+          type: string
+      - name: description
+        description: "New ticket description"
+        required: false
+        multiline: true
+        example: "Auto-remediated by Shuffle SOAR."
+        schema:
+          type: string
+      - name: remediation
+        description: "Recommended remediation text"
+        required: false
+        multiline: true
+        example: "Block src_ip at the edge firewall and rotate affected credentials."
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: delete_ticket
+    description: "Delete an AMaze ticket (admin only on the API)."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: list_ticket_dispatches
+    description: "Full integration dispatch history for one ticket, newest first."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+  - name: retry_ticket_dispatch
+    description: "Admin-only: re-fire a failed dispatch using the original event payload."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+      - name: dispatch_id
+        description: "Dispatch UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  # ── Integrations ─────────────────────────────────────────────────────────
+  - name: test_integration
+    description: "Fire a synthetic Rich Alert at an integration and record the attempt (admin only)."
+    parameters:
+      - name: integration_id
+        description: "Integration UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  # ── Approvals (HITL) ─────────────────────────────────────────────────────
+  - name: list_approvals
+    description: "List pending approval requests for outbound dispatches."
+    parameters:
+      - name: status
+        description: "Approval status filter (pending | approved | rejected | expired)"
+        required: false
+        multiline: false
+        example: "pending"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: ticket_id
+        description: "Filter to approvals whose dispatch belongs to this ticket"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: limit
+        description: "Result limit (default 200, max 1000)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+  # ── Logs / detection data ────────────────────────────────────────────────
+  - name: get_external_logs
+    description: "Paginated external-network SCA logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter (ssh, http, ...)"
+        required: false
+        multiline: false
+        example: "ssh"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: "185.220.101.34"
+        schema:
+          type: string
+      - name: country
+        description: "Country filter"
+        required: false
+        multiline: false
+        example: "RU"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column: timestamp | threat_score | src_ip | country | protocol | sca_id | sca_name | username"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc (default desc)"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: get_internal_logs
+    description: "Paginated internal-network SCA logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter"
+        required: false
+        multiline: false
+        example: "rdp"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: "10.0.0.5"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: get_ot_logs
+    description: "Paginated OT-network SCA logs (Modbus, DNP3, S7, ...)."
+    parameters:
+      - name: protocol
+        description: "Protocol filter (modbus, dnp3, s7, ...)"
+        required: false
+        multiline: false
+        example: "modbus"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: get_ad_logs
+    description: "Paginated Active-Directory (AD server) SCA logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: get_ai_threats_logs
+    description: "Paginated AI-threats (AI-deception layer) logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: get_attack_path
+    description: "Paginated multi-stage attack trails (IP attack path)."
+    parameters:
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  # ── Sites / context / enrichment ─────────────────────────────────────────
+  - name: list_sites
+    description: "List sites the caller is authorised to see."
+    parameters: []
+    returns:
+      schema:
+        type: array
+  - name: get_site_summary
+    description: "Summary stats for a single site."
+    parameters:
+      - name: site_id
+        description: "Site UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: check_ip_reputation
+    description: "Check IP reputation via the AMaze proxy (IPQS | AbuseIPDB | VirusTotal)."
+    parameters:
+      - name: ip
+        description: "IP address to check"
+        required: true
+        multiline: false
+        example: "185.220.101.34"
+        schema:
+          type: string
+      - name: source
+        description: "Reputation provider"
+        required: false
+        multiline: false
+        options:
+          - ipqs
+          - abuseipdb
+          - virustotal
+        example: "ipqs"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: list_protocols
+    description: "List active protocols tracked by the platform."
+    parameters: []
+    returns:
+      schema:
+        type: array
+  - name: get_alert_config
+    description: "Get the auto-ticketing alert configuration."
+    parameters: []
+    returns:
+      schema:
+        type: object
+  # ── Audit & reports ──────────────────────────────────────────────────────
+  - name: list_audit_log
+    description: "List the immutable audit log (admin/auditor)."
+    parameters:
+      - name: limit
+        description: "Result limit (default 100, max 500)"
+        required: false
+        multiline: false
+        example: "100"
+        schema:
+          type: string
+      - name: offset
+        description: "Skip this many rows"
+        required: false
+        multiline: false
+        example: "0"
+        schema:
+          type: string
+      - name: actor
+        description: "Filter by actor email"
+        required: false
+        multiline: false
+        example: "analyst@example.com"
+        schema:
+          type: string
+      - name: action
+        description: "Filter by exact action name (e.g. ticket.update)"
+        required: false
+        multiline: false
+        example: "ticket.update"
+        schema:
+          type: string
+      - name: from_dt
+        description: "Only entries at/after this time (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-01T00:00:00Z"
+        schema:
+          type: string
+      - name: to_dt
+        description: "Only entries at/before this time (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-05T00:00:00Z"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+  - name: list_report_runs
+    description: "List report runs (scheduled/signed CISO & board reports)."
+    parameters:
+      - name: schedule_id
+        description: "Filter by report schedule UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: limit
+        description: "Result limit (default 50, max 200)"
+        required: false
+        multiline: false
+        example: "20"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+  - name: get_report_run
+    description: "Get details for a single report run."
+    parameters:
+      - name: run_id
+        description: "Report run UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
