@@ -18,15 +18,36 @@ import requests
 DEFAULT_TIMEOUT_SECONDS = 20
 
 
+class AmazeAPIError(RuntimeError):
+    """Raised when the AMaze API returns an error status (>= 400).
+
+    Carries the HTTP ``status_code`` so Shuffle workflows can branch on
+    authentication/authorization failures (401/403) vs other errors (5xx).
+    """
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class AmazeClient:
     def __init__(
         self,
         base_url: str,
         bearer_token: str,
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
+        verify: Optional[bool] = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        # Shuffle passes action parameters as strings, so normalise
+        # "true"/"false"/"1"/"0" to a real bool. Defaults to True.
+        if verify is None:
+            self.verify = True
+        elif isinstance(verify, str):
+            self.verify = verify.strip().lower() in ("1", "true", "yes", "on")
+        else:
+            self.verify = bool(verify)
         self.headers = {
             "Authorization": f"Bearer {bearer_token}",
             "Content-Type": "application/json",
@@ -51,11 +72,13 @@ class AmazeClient:
             params=cleaned,
             json=json_body,
             timeout=self.timeout,
+            verify=self.verify,
         )
         if response.status_code >= 400:
-            raise RuntimeError(
+            raise AmazeAPIError(
+                response.status_code,
                 f"HTTP {response.status_code} {response.reason} on {method} {path}: "
-                f"{response.text[:500]}"
+                f"{response.text[:500]}",
             )
         if response.status_code == 204 or not response.content:
             return None

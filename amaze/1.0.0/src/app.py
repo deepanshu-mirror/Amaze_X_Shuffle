@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import sys
 from argparse import ArgumentParser
 from typing import Any, Dict, Optional
@@ -27,13 +28,14 @@ from typing import Any, Dict, Optional
 # (walkoff_app_sdk / shuffle_sdk / app_base) AND falling back to a plain CLI
 # when no SDK is installed locally.
 try:
-    from walkoff_app_sdk.app_base import AppBase
+    from walkoff_app_sdk.app_base import AppBase  # type: ignore
+    # NOTE: walkoff_app_sdk is only resolvable inside the Shuffle SDK image.
 except ImportError:  # pragma: no cover - environment dependent
     try:
         from shuffle_sdk import AppBase
     except ImportError:
         try:
-            from app_base import AppBase
+            from app_base import AppBase  # type: ignore
         except ImportError:
             AppBase = object
 
@@ -48,14 +50,30 @@ class AMaze(AppBase):
         if AppBase is not object:
             try:
                 super().__init__(redis, logger, console_logger)
-            except TypeError:
-                super().__init__()
+            except (TypeError, AttributeError):
+                # Some SDK builds raise when constructed without a logger
+                # (e.g. shuffle_sdk's __init__ calls logger.addHandler on a
+                # None logger) or with a different __init__ signature. Fall
+                # back to a no-arg init and keep going.
+                try:
+                    super().__init__()
+                except (TypeError, AttributeError):
+                    pass
+        # Always guarantee a minimal logging surface for CLI/local runs.
+        if not hasattr(self, "logger"):
+            self.logger = logging.getLogger(self.__class__.__name__)
+        if not hasattr(self, "console_logger"):
+            self.console_logger = self.logger
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _client(base_url: str, bearer_token: str) -> AmazeClient:
-        return AmazeClient(base_url=base_url, bearer_token=bearer_token)
+    def _client(
+        base_url: str, bearer_token: str, verify: Optional[bool] = None
+    ) -> AmazeClient:
+        return AmazeClient(
+            base_url=base_url, bearer_token=bearer_token, verify=verify
+        )
 
     # ── Tickets ────────────────────────────────────────────────────────────
 
@@ -63,6 +81,7 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         status: Optional[str] = None,
         ip: Optional[str] = None,
         protocol: Optional[str] = None,
@@ -76,7 +95,7 @@ class AMaze(AppBase):
         limit: Optional[int] = None,
         offset: Optional[int] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).list_tickets(
+        return self._client(base_url, bearer_token, verify).list_tickets(
             status=status,
             ip=ip,
             protocol=protocol,
@@ -91,32 +110,51 @@ class AMaze(AppBase):
             offset=offset,
         )
 
-    def get_ticket(self, base_url: str, bearer_token: str, ticket_id: str) -> Any:
-        return self._client(base_url, bearer_token).get_ticket(ticket_id)
+    def get_ticket(
+        self,
+        base_url: str,
+        bearer_token: str,
+        ticket_id: str,
+        verify: Optional[bool] = None,
+    ) -> Any:
+        return self._client(base_url, bearer_token, verify).get_ticket(ticket_id)
 
     def update_ticket(
         self,
         base_url: str,
         bearer_token: str,
         ticket_id: str,
+        verify: Optional[bool] = None,
         status: Optional[str] = None,
         description: Optional[str] = None,
         remediation: Optional[str] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).update_ticket(
+        return self._client(base_url, bearer_token, verify).update_ticket(
             ticket_id=ticket_id,
             status=status,
             description=description,
             remediation=remediation,
         )
 
-    def delete_ticket(self, base_url: str, bearer_token: str, ticket_id: str) -> Any:
-        return self._client(base_url, bearer_token).delete_ticket(ticket_id)
+    def delete_ticket(
+        self,
+        base_url: str,
+        bearer_token: str,
+        ticket_id: str,
+        verify: Optional[bool] = None,
+    ) -> Any:
+        return self._client(base_url, bearer_token, verify).delete_ticket(ticket_id)
 
     def list_ticket_dispatches(
-        self, base_url: str, bearer_token: str, ticket_id: str
+        self,
+        base_url: str,
+        bearer_token: str,
+        ticket_id: str,
+        verify: Optional[bool] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).list_ticket_dispatches(ticket_id)
+        return self._client(base_url, bearer_token, verify).list_ticket_dispatches(
+            ticket_id
+        )
 
     def retry_ticket_dispatch(
         self,
@@ -124,17 +162,24 @@ class AMaze(AppBase):
         bearer_token: str,
         ticket_id: str,
         dispatch_id: str,
+        verify: Optional[bool] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).retry_ticket_dispatch(
+        return self._client(base_url, bearer_token, verify).retry_ticket_dispatch(
             ticket_id, dispatch_id
         )
 
     # ── Integrations ───────────────────────────────────────────────────────
 
     def test_integration(
-        self, base_url: str, bearer_token: str, integration_id: str
+        self,
+        base_url: str,
+        bearer_token: str,
+        integration_id: str,
+        verify: Optional[bool] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).test_integration(integration_id)
+        return self._client(base_url, bearer_token, verify).test_integration(
+            integration_id
+        )
 
     # ── Approvals (HITL) ───────────────────────────────────────────────────
 
@@ -142,12 +187,13 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         status: Optional[str] = None,
         site_id: Optional[str] = None,
         ticket_id: Optional[str] = None,
         limit: Optional[int] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).list_approvals(
+        return self._client(base_url, bearer_token, verify).list_approvals(
             status=status,
             site_id=site_id,
             ticket_id=ticket_id,
@@ -160,6 +206,7 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         protocol: Optional[str] = None,
         ip: Optional[str] = None,
         country: Optional[str] = None,
@@ -169,7 +216,7 @@ class AMaze(AppBase):
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).get_external_logs(
+        return self._client(base_url, bearer_token, verify).get_external_logs(
             protocol=protocol,
             ip=ip,
             country=country,
@@ -184,6 +231,7 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         protocol: Optional[str] = None,
         ip: Optional[str] = None,
         site_id: Optional[str] = None,
@@ -192,7 +240,7 @@ class AMaze(AppBase):
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).get_internal_logs(
+        return self._client(base_url, bearer_token, verify).get_internal_logs(
             protocol=protocol,
             ip=ip,
             site_id=site_id,
@@ -206,6 +254,7 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         protocol: Optional[str] = None,
         ip: Optional[str] = None,
         site_id: Optional[str] = None,
@@ -214,7 +263,7 @@ class AMaze(AppBase):
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).get_ot_logs(
+        return self._client(base_url, bearer_token, verify).get_ot_logs(
             protocol=protocol,
             ip=ip,
             site_id=site_id,
@@ -228,6 +277,7 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         protocol: Optional[str] = None,
         ip: Optional[str] = None,
         site_id: Optional[str] = None,
@@ -236,7 +286,7 @@ class AMaze(AppBase):
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).get_ad_logs(
+        return self._client(base_url, bearer_token, verify).get_ad_logs(
             protocol=protocol,
             ip=ip,
             site_id=site_id,
@@ -250,6 +300,7 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         protocol: Optional[str] = None,
         ip: Optional[str] = None,
         site_id: Optional[str] = None,
@@ -258,7 +309,7 @@ class AMaze(AppBase):
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).get_ai_threats_logs(
+        return self._client(base_url, bearer_token, verify).get_ai_threats_logs(
             protocol=protocol,
             ip=ip,
             site_id=site_id,
@@ -272,11 +323,12 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         site_id: Optional[str] = None,
         page: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).get_attack_path(
+        return self._client(base_url, bearer_token, verify).get_attack_path(
             site_id=site_id,
             page=page,
             limit=limit,
@@ -284,11 +336,19 @@ class AMaze(AppBase):
 
     # ── Sites / context / enrichment ───────────────────────────────────────
 
-    def list_sites(self, base_url: str, bearer_token: str) -> Any:
-        return self._client(base_url, bearer_token).list_sites()
+    def list_sites(
+        self, base_url: str, bearer_token: str, verify: Optional[bool] = None
+    ) -> Any:
+        return self._client(base_url, bearer_token, verify).list_sites()
 
-    def get_site_summary(self, base_url: str, bearer_token: str, site_id: str) -> Any:
-        return self._client(base_url, bearer_token).get_site_summary(site_id)
+    def get_site_summary(
+        self,
+        base_url: str,
+        bearer_token: str,
+        site_id: str,
+        verify: Optional[bool] = None,
+    ) -> Any:
+        return self._client(base_url, bearer_token, verify).get_site_summary(site_id)
 
     def check_ip_reputation(
         self,
@@ -296,16 +356,21 @@ class AMaze(AppBase):
         bearer_token: str,
         ip: str,
         source: Optional[str] = None,
+        verify: Optional[bool] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).check_ip_reputation(
+        return self._client(base_url, bearer_token, verify).check_ip_reputation(
             ip=ip, source=source or "ipqs"
         )
 
-    def list_protocols(self, base_url: str, bearer_token: str) -> Any:
-        return self._client(base_url, bearer_token).list_protocols()
+    def list_protocols(
+        self, base_url: str, bearer_token: str, verify: Optional[bool] = None
+    ) -> Any:
+        return self._client(base_url, bearer_token, verify).list_protocols()
 
-    def get_alert_config(self, base_url: str, bearer_token: str) -> Any:
-        return self._client(base_url, bearer_token).get_alert_config()
+    def get_alert_config(
+        self, base_url: str, bearer_token: str, verify: Optional[bool] = None
+    ) -> Any:
+        return self._client(base_url, bearer_token, verify).get_alert_config()
 
     # ── Audit & reports ────────────────────────────────────────────────────
 
@@ -313,6 +378,7 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         actor: Optional[str] = None,
@@ -320,7 +386,7 @@ class AMaze(AppBase):
         from_dt: Optional[str] = None,
         to_dt: Optional[str] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).list_audit_log(
+        return self._client(base_url, bearer_token, verify).list_audit_log(
             limit=limit,
             offset=offset,
             actor=actor,
@@ -333,16 +399,23 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        verify: Optional[bool] = None,
         schedule_id: Optional[str] = None,
         limit: Optional[int] = None,
     ) -> Any:
-        return self._client(base_url, bearer_token).list_report_runs(
+        return self._client(base_url, bearer_token, verify).list_report_runs(
             schedule_id=schedule_id,
             limit=limit,
         )
 
-    def get_report_run(self, base_url: str, bearer_token: str, run_id: str) -> Any:
-        return self._client(base_url, bearer_token).get_report_run(run_id)
+    def get_report_run(
+        self,
+        base_url: str,
+        bearer_token: str,
+        run_id: str,
+        verify: Optional[bool] = None,
+    ) -> Any:
+        return self._client(base_url, bearer_token, verify).get_report_run(run_id)
 
     # ── Runner ─────────────────────────────────────────────────────────────
 
@@ -390,6 +463,9 @@ class AMaze(AppBase):
         parser.add_argument("--schedule-id", help="Report schedule filter")
         parser.add_argument("--sort-by", help="Log sort column")
         parser.add_argument("--sort-order", help="Log sort order (asc|desc)")
+        parser.add_argument(
+            "--verify", help="TLS verification (true|false), default true"
+        )
         args = parser.parse_args()
 
         app = cls()
@@ -426,6 +502,7 @@ class AMaze(AppBase):
             "schedule_id": args.schedule_id,
             "sort_by": args.sort_by,
             "sort_order": args.sort_order,
+            "verify": args.verify,
         }
         # Only pass arguments the action actually accepts.
         sig = inspect.signature(action)

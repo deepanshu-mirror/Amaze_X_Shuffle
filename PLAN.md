@@ -150,7 +150,7 @@ Implemented in this repo (`Amaze_X_Shuffle`):
    installs `requests`, `CMD python app.py --log-level DEBUG`. The SDK is
    bundled in the base image; `requirements-dev.txt` carries it for local runs.
 6. `amaze/1.0.0/tests/` — parity + client behavior tests.
-7. `README.md` + `docs.md` — usage, auth, and end-to-end workflow recipes
+7. `README.md` (repo + app) — usage, auth, and end-to-end workflow recipes
    (webhook ingest + response + loopback), aligned with the existing
    `docs/integrations/shuffle.md` in `mirrormire-amaze`.
 

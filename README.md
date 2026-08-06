@@ -14,8 +14,8 @@ within Shuffle workflows.
 
 The Shuffle app lives in `amaze/1.0.0/` — the canonical `<app>/<version>/`
 layout used by the upstream `Shuffle/python-apps` repository. The repo root
-holds project-level docs (`README.md`, `PLAN.md`, `docs.md`) and the
-upstream-ready app folder.
+holds project-level docs (`README.md`, `PLAN.md`) and the upstream-ready app
+folder.
 
 | Path | Purpose |
 | --- | --- |
@@ -26,7 +26,6 @@ upstream-ready app folder.
 | `amaze/1.0.0/requirements-dev.txt` | Local dev/test deps (SDK, pytest, PyYAML) |
 | `amaze/1.0.0/Dockerfile` | Builds on `frikky/shuffle:app_sdk` |
 | `amaze/1.0.0/tests/` | Pytest: client behaviour + `api.yaml` ↔ method parity |
-| `docs.md` | Extended integration docs and Shuffle workflow recipes |
 | `PLAN.md` | Two-sided implementation plan (AMaze platform ↔ Shuffle app) |
 
 To contribute upstream, open a PR against `Shuffle/python-apps` adding the
@@ -92,5 +91,6 @@ Webhook (AMaze Rich Alert)
       → AMaze.list_approvals(status=pending)  # surface HITL queue
 ```
 
-See `docs.md` for the full recipes and the AMaze `docs/integrations/shuffle.md`
-recipe for configuring the webhook trigger on the AMaze side.
+See `amaze/1.0.0/README.md` for the full recipes and the AMaze
+`docs/integrations/shuffle.md` recipe for configuring the webhook trigger on
+the AMaze side.
