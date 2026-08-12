@@ -1,5 +1,0 @@
-# Runtime dependencies for the AMaze Shuffle app.
-# NOTE: the Shuffle SDK is NOT listed here on purpose — the base image
-# (frikky/shuffle:app_sdk) already bundles it. Local dev/testing deps live in
-# requirements-dev.txt.
-requests

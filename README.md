@@ -5,7 +5,7 @@ Query and operate AMaze tickets (actionable alerts), approvals, detection
 logs (IT / OT / AD / AI), sites, IP reputation, audit and reporting from
 within Shuffle workflows.
 
-- **AMaze** (`mirrormire-amaze`) — MirrorMire AI's enterprise deception
+- **AMaze** (`mirrormire-amaze`) — Mirrormire AI's enterprise deception
   reporting platform (SCAs across IT, OT and AI surfaces).
 - **Shuffle** — open-source SOAR that routes webhooks into visual automation
   workflows. This repo is the Shuffle **python-app** side of the integration.

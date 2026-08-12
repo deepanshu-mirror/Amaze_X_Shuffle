@@ -1,7 +1,6 @@
 FROM frikky/shuffle:app_sdk as base
 
 FROM base as builder
-RUN apk --no-cache add --update alpine-sdk libffi libffi-dev musl-dev openssl-dev
 RUN mkdir /install
 WORKDIR /install
 COPY requirements.txt /requirements.txt

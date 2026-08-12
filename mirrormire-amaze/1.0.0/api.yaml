@@ -1,0 +1,769 @@
+walkoff_version: 1.0.0
+app_version: 1.0.0
+name: AMaze
+description: >-
+  AMaze deception platform (Mirrormire AI) integration for Shuffle. Query and
+  operate deception-detection tickets, approvals, logs, sites, IP reputation
+  and audit/reporting via the AMaze REST API v3.
+contact_info:
+  name: "Mirrormire AI"
+  url: "https://mirrormire.ai"
+  email: "support@mirrormire.ai"
+tags:
+  - Deception
+  - Honeypot
+  - Mirrormire AI
+categories:
+  - Case Management
+  - SIEM
+authentication:
+  required: true
+  parameters:
+    - name: base_url
+      description: "Full AMaze API base URL including the API path, for example https://amaze.example.com/api/v3"
+      required: true
+      example: "https://dashboard.mirrormire.ai/api/v3"
+      schema:
+        type: string
+    - name: bearer_token
+      description: "Bearer token (JWT or API token) for AMaze API access."
+      required: true
+      example: "eyJhbGciOi..."
+      schema:
+        type: string
+    - name: verify
+      description: "Verify TLS certificates. Set to false only for self-signed or on-prem instances."
+      required: false
+      example: "true"
+      schema:
+        type: boolean
+actions:
+  # ── Tickets ──────────────────────────────────────────────────────────────
+  - name: list_tickets
+    description: "List and filter AMaze incident tickets (actionable alerts)."
+    parameters:
+      - name: status
+        description: "Ticket status filter (OPEN | IN_PROGRESS | CLOSED)"
+        required: false
+        multiline: false
+        example: "OPEN"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP prefix or exact match, e.g. 185.220.101.34"
+        required: false
+        multiline: false
+        example: "185.220.101."
+        schema:
+          type: string
+      - name: protocol
+        description: "Exact protocol, case-insensitive (ssh, http, ...)"
+        required: false
+        multiline: false
+        example: "ssh"
+        schema:
+          type: string
+      - name: ttp
+        description: "MITRE TTP prefix (T1110 matches T1110.001)"
+        required: false
+        multiline: false
+        example: "T1110"
+        schema:
+          type: string
+      - name: country
+        description: "Country substring, case-insensitive"
+        required: false
+        multiline: false
+        example: "RU"
+        schema:
+          type: string
+      - name: min_score
+        description: "Minimum threat score (0-100)"
+        required: false
+        multiline: false
+        example: "90"
+        schema:
+          type: string
+      - name: q
+        description: "Free-text search across title and description"
+        required: false
+        multiline: false
+        example: "ssh brute"
+        schema:
+          type: string
+      - name: from_dt
+        description: "Created at or after (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-01T00:00:00Z"
+        schema:
+          type: string
+      - name: to_dt
+        description: "Created at or before (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-05T00:00:00Z"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 200, max 1000)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: offset
+        description: "Skip this many rows (pagination)"
+        required: false
+        multiline: false
+        example: "0"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+      example: |
+        [{ "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "title": "SSH brute force", "status": "OPEN", "threat_score": 97, "src_ip": "185.220.101.34", "ttp": "T1110.001", "created_at": "2026-08-05T10:00:00Z" }]
+  - name: get_ticket
+    description: "Retrieve a specific AMaze ticket by ID."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "title": "SSH brute force", "status": "OPEN", "threat_score": 97, "src_ip": "185.220.101.34", "dst_ip": "10.0.0.7", "protocol": "ssh", "ttp": "T1110.001", "remediation": "Block src_ip at the edge firewall.", "created_at": "2026-08-05T10:00:00Z" }
+  - name: update_ticket
+    description: "Update an AMaze ticket status, description and/or remediation."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+      - name: status
+        description: "Ticket status (OPEN | IN_PROGRESS | CLOSED)"
+        required: false
+        multiline: false
+        example: "CLOSED"
+        schema:
+          type: string
+      - name: description
+        description: "New ticket description"
+        required: false
+        multiline: true
+        example: "Auto-remediated by Shuffle SOAR."
+        schema:
+          type: string
+      - name: remediation
+        description: "Recommended remediation text"
+        required: false
+        multiline: true
+        example: "Block src_ip at the edge firewall and rotate affected credentials."
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "status": "CLOSED", "updated_at": "2026-08-05T10:05:00Z" }
+  - name: delete_ticket
+    description: "Delete an AMaze ticket (admin only on the API)."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        null
+  - name: list_ticket_dispatches
+    description: "Full integration dispatch history for one ticket, newest first."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+      example: |
+        [{ "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "integration_name": "slack", "status": "delivered", "attempts": 1, "sent_at": "2026-08-05T10:01:00Z" }]
+  - name: retry_ticket_dispatch
+    description: "Admin-only: re-fire a failed dispatch using the original event payload."
+    parameters:
+      - name: ticket_id
+        description: "Ticket UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+      - name: dispatch_id
+        description: "Dispatch UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "status": "queued", "attempt": 2 }
+  # ── Integrations ─────────────────────────────────────────────────────────
+  - name: test_integration
+    description: "Fire a synthetic Rich Alert at an integration and record the attempt (admin only)."
+    parameters:
+      - name: integration_id
+        description: "Integration UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "id": "9e5a1f11-9d22-4b0e-9e2c-2b1b6f7a1f00", "status": "success", "latency_ms": 340 }
+  # ── Approvals (HITL) ─────────────────────────────────────────────────────
+  - name: list_approvals
+    description: "List pending approval requests for outbound dispatches."
+    parameters:
+      - name: status
+        description: "Approval status filter (pending | approved | rejected | expired)"
+        required: false
+        multiline: false
+        example: "pending"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: ticket_id
+        description: "Filter to approvals whose dispatch belongs to this ticket"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: limit
+        description: "Result limit (default 200, max 1000)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+      example: |
+        [{ "id": "1b4e28ba-2fa1-11d2-883f-0016d3cca427", "status": "pending", "ticket_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "integration_name": "slack", "requested_at": "2026-08-05T10:01:30Z" }]
+  # ── Logs / detection data ────────────────────────────────────────────────
+  - name: get_external_logs
+    description: "Paginated external-network SCA logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter (ssh, http, ...)"
+        required: false
+        multiline: false
+        example: "ssh"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: "185.220.101.34"
+        schema:
+          type: string
+      - name: country
+        description: "Country filter"
+        required: false
+        multiline: false
+        example: "RU"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column: timestamp | threat_score | src_ip | country | protocol | sca_id | sca_name | username"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc (default desc)"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "items": [ { "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479", "protocol": "ssh", "src_ip": "185.220.101.34", "threat_score": 88, "country": "DE", "timestamp": "2026-08-05T10:00:00Z" } ], "total": 1, "page": 1, "limit": 50 }
+  - name: get_internal_logs
+    description: "Paginated internal-network SCA logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter"
+        required: false
+        multiline: false
+        example: "rdp"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: "10.0.0.5"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc (default desc)"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "items": [ { "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479", "protocol": "rdp", "src_ip": "10.0.0.5", "threat_score": 61, "timestamp": "2026-08-05T10:00:00Z" } ], "total": 1, "page": 1, "limit": 50 }
+  - name: get_ot_logs
+    description: "Paginated OT-network SCA logs (Modbus, DNP3, S7, ...)."
+    parameters:
+      - name: protocol
+        description: "Protocol filter (modbus, dnp3, s7, ...)"
+        required: false
+        multiline: false
+        example: "modbus"
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc (default desc)"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "items": [ { "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479", "protocol": "modbus", "src_ip": "192.168.10.22", "threat_score": 74, "timestamp": "2026-08-05T10:00:00Z" } ], "total": 1, "page": 1, "limit": 50 }
+  - name: get_ad_logs
+    description: "Paginated Active-Directory (AD server) SCA logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc (default desc)"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "items": [ { "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479", "protocol": "ldap", "src_ip": "10.20.0.9", "threat_score": 69, "timestamp": "2026-08-05T10:00:00Z" } ], "total": 1, "page": 1, "limit": 50 }
+  - name: get_ai_threats_logs
+    description: "Paginated AI-threats (AI-deception layer) logs."
+    parameters:
+      - name: protocol
+        description: "Protocol filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: ip
+        description: "Source IP filter"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: page
+        description: "Page number (default 1)"
+        required: false
+        multiline: false
+        example: "1"
+        schema:
+          type: string
+      - name: limit
+        description: "Page size (default 50, max 500)"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+      - name: sort_by
+        description: "Sort column"
+        required: false
+        multiline: false
+        example: "timestamp"
+        schema:
+          type: string
+      - name: sort_order
+        description: "asc | desc (default desc)"
+        required: false
+        multiline: false
+        example: "desc"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "items": [ { "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479", "protocol": "ai-agent", "src_ip": "10.30.0.12", "threat_score": 95, "timestamp": "2026-08-05T10:00:00Z" } ], "total": 1, "page": 1, "limit": 50 }
+  - name: get_attack_path
+    description: "Paginated multi-stage attack trails (IP attack path)."
+    parameters:
+      - name: ip
+        description: "Source IP address to trace the attack path for (required)"
+        required: true
+        multiline: false
+        example: "185.220.101.34"
+        schema:
+          type: string
+      - name: site_id
+        description: "Filter by site UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: limit
+        description: "Page size"
+        required: false
+        multiline: false
+        example: "50"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "items": [ { "src_ip": "185.220.101.34", "hops": 3, "protocols": ["ssh", "rdp"], "severity": "high" } ], "total": 1 }
+  # ── Sites / context / enrichment ─────────────────────────────────────────
+  - name: list_sites
+    description: "List sites the caller is authorised to see."
+    parameters: []
+    returns:
+      schema:
+        type: array
+      example: |
+        [{ "id": "3f2c1e6a-1f3e-4a5b-9c0d-1a2b3c4d5e6f", "name": "HQ", "tenant_id": "5a8f1c2e-0000-1111-2222-333344445555" }]
+  - name: get_site_summary
+    description: "Summary stats for a single site."
+    parameters:
+      - name: site_id
+        description: "Site UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "site_id": "3f2c1e6a-1f3e-4a5b-9c0d-1a2b3c4d5e6f", "total_events": 1234, "open_tickets": 5, "critical_assets": 12 }
+  - name: check_ip_reputation
+    description: "Check IP reputation via the AMaze proxy (IPQS | AbuseIPDB | VirusTotal)."
+    parameters:
+      - name: ip
+        description: "IP address to check"
+        required: true
+        multiline: false
+        example: "185.220.101.34"
+        schema:
+          type: string
+      - name: source
+        description: "Reputation provider"
+        required: false
+        multiline: false
+        options:
+          - ipqs
+          - abuseipdb
+          - virustotal
+        example: "ipqs"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "ip": "185.220.101.34", "source": "ipqs", "fraud_score": 88, "is_proxy": true, "risk": "high" }
+  - name: list_protocols
+    description: "List active protocols tracked by the platform."
+    parameters: []
+    returns:
+      schema:
+        type: object
+      example: |
+        { "protocols": ["ssh", "rdp", "http", "mysql", "modbus", "dnp3", "s7", "bacnet"] }
+  - name: get_alert_config
+    description: "Get the latest high-threat system alerts (threat_score >= 70)."
+    parameters: []
+    returns:
+      schema:
+        type: object
+      example: |
+        { "alerts": [{ "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479", "threat_score": 95, "src_ip": "10.30.0.12" }], "count": 1 }
+  # ── Audit & reports ──────────────────────────────────────────────────────
+  - name: list_audit_log
+    description: "List the immutable audit log (admin/auditor)."
+    parameters:
+      - name: limit
+        description: "Result limit (default 100, max 500)"
+        required: false
+        multiline: false
+        example: "100"
+        schema:
+          type: string
+      - name: offset
+        description: "Skip this many rows"
+        required: false
+        multiline: false
+        example: "0"
+        schema:
+          type: string
+      - name: actor
+        description: "Filter by actor email"
+        required: false
+        multiline: false
+        example: "analyst@example.com"
+        schema:
+          type: string
+      - name: action
+        description: "Filter by exact action name (e.g. ticket.update)"
+        required: false
+        multiline: false
+        example: "ticket.update"
+        schema:
+          type: string
+      - name: from_dt
+        description: "Only entries at/after this time (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-01T00:00:00Z"
+        schema:
+          type: string
+      - name: to_dt
+        description: "Only entries at/before this time (ISO 8601)"
+        required: false
+        multiline: false
+        example: "2026-08-05T00:00:00Z"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "items": [ { "id": "1c1f1e1d-1c1b-1a19-1817-161514131211", "actor": "analyst@example.com", "action": "ticket.update", "timestamp": "2026-08-05T10:05:00Z" } ], "total": 1 }
+  - name: list_report_runs
+    description: "List report runs (scheduled/signed CISO & board reports)."
+    parameters:
+      - name: schedule_id
+        description: "Filter by report schedule UUID"
+        required: false
+        multiline: false
+        example: ""
+        schema:
+          type: string
+      - name: limit
+        description: "Result limit (default 50, max 200)"
+        required: false
+        multiline: false
+        example: "20"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: array
+      example: |
+        [{ "id": "2a2b2c2d-2e2f-3031-3233-343536373839", "schedule_id": "3a3b3c3d-3e3f-4041-4243-444546474849", "status": "completed", "generated_at": "2026-08-05T06:00:00Z" }]
+  - name: get_report_run
+    description: "Get details for a single report run."
+    parameters:
+      - name: run_id
+        description: "Report run UUID"
+        required: true
+        multiline: false
+        example: "00000000-0000-0000-0000-000000000000"
+        schema:
+          type: string
+    returns:
+      schema:
+        type: object
+      example: |
+        { "id": "2a2b2c2d-2e2f-3031-3233-343536373839", "status": "completed", "format": "pdf", "download_url": "https://amaze.example.com/api/v3/reports/runs/2a2b2c2d-2e2f-3031-3233-343536373839/download" }
+
+
+large_image: "data:image/png;base64,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"
+small_image: "data:image/png;base64,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"

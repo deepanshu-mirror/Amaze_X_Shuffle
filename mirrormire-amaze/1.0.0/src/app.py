@@ -10,7 +10,7 @@ Runs in three modes:
   * Inside the Shuffle SDK container — ``AppBase.run()`` dispatches actions.
   * Locally with ``shuffle_sdk`` installed:
         python src/app.py --standalone --action=list_tickets \\
-            base_url=http://localhost:8000 bearer_token=TOKEN
+            base_url=http://localhost:8000/api/v3 bearer_token=TOKEN
   * Locally with no SDK (pure CLI):
         python src/app.py list_tickets --base-url ... --bearer-token ...
 """
@@ -61,8 +61,27 @@ class _NoArgFriendlyParser(ArgumentParser):
 
 
 class AMaze(AppBase):
+    """AMaze deception platform integration for Shuffle SOAR.
+
+    Each public method is an *action* that maps 1:1 to an entry in
+    ``api.yaml`` (same name + argument list). Shared credentials
+    (``base_url``, ``bearer_token``, ``verify``) are declared under
+    ``authentication:`` in ``api.yaml`` and injected into every action
+    by Shuffle.
+
+    Attributes:
+        __version__: App version string (``"1.0.0"``). Must match
+            ``app_version`` in ``api.yaml``.
+        app_name: Shuffle app identifier (``"AMaze"``). Must match
+            ``name`` in ``api.yaml``.
+        logger: :class:`logging.Logger` instance for the Shuffle SDK
+            runtime. Used for debug/error output inside the container.
+        console_logger: Secondary logger for console-friendly output
+            in the Shuffle UI.
+    """
+
     __version__ = "1.0.0"
-    app_name = "amaze"  # must match "name" in api.yaml
+    app_name = "AMaze"  # must match "name" in api.yaml
 
     def __init__(self, redis=None, logger=None, console_logger=None) -> None:
         if AppBase is not object:
@@ -341,14 +360,14 @@ class AMaze(AppBase):
         self,
         base_url: str,
         bearer_token: str,
+        ip: str,
         verify: Optional[bool] = None,
         site_id: Optional[str] = None,
-        page: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> Any:
         return self._client(base_url, bearer_token, verify).get_attack_path(
+            ip=ip,
             site_id=site_id,
-            page=page,
             limit=limit,
         )
 
@@ -439,7 +458,17 @@ class AMaze(AppBase):
 
     @classmethod
     def run(cls) -> None:
-        """Prefer the SDK runner when available; otherwise use the plain CLI."""
+        """Prefer the SDK runner when available; otherwise use the plain CLI.
+
+        A bare ``python app.py`` with no arguments always prints help and
+        exits cleanly (required by upstream ``analyze.py`` smoke test),
+        even when the Shuffle SDK is installed. This prevents the SDK
+        runner from phoning home to ``shuffler.io`` on a no-arg smoke run.
+        """
+        if len(sys.argv) <= 1:
+            # Bare invocation — always show CLI help (analyze.py smoke test).
+            cls._run_cli()
+            return
         if AppBase is not object and hasattr(AppBase, "run"):
             super().run()
             return
@@ -449,7 +478,7 @@ class AMaze(AppBase):
     def _run_cli(cls) -> None:
         """Minimal standalone CLI for local testing without the Shuffle SDK.
 
-        Usage: python src/app.py list_tickets --base-url http://localhost:8000 \\
+        Usage: python src/app.py list_tickets --base-url http://localhost:8000/api/v3 \
                     --bearer-token TOKEN [--status OPEN] ...
         """
         parser = _NoArgFriendlyParser(
