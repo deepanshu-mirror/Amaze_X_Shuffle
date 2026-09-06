@@ -773,8 +773,8 @@ class AmazeClient:
             limit: Result limit (default 50, max 200).
 
         Returns:
-            List of report run objects with ``status`` and
-            ``generated_at``.
+            List of report run objects with ``status``, ``period_start``/
+            ``period_end``, ``created_at``, and ``completed_at``.
         """
         return self._request(
             "GET",
@@ -791,7 +791,9 @@ class AmazeClient:
             run_id: Report run UUID.
 
         Returns:
-            Report run object with ``status``, ``format``, and
-            ``download_url``.
+            Report run object with ``status``, ``pdf_sha256``,
+            ``signature``, ``summary_json``, and ``dispatch_history``.
+            (The signed PDF itself is fetched from
+            ``/api/v3/reports/runs/{run_id}/pdf``.)
         """
         return self._request("GET", f"/reports/runs/{run_id}")
